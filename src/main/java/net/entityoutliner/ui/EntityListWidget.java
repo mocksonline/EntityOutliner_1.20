@@ -3,6 +3,7 @@ package net.entityoutliner.ui;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.minecraft.client.gui.DrawContext;
 import org.apache.commons.lang3.StringUtils;
 
 import net.entityoutliner.ui.ColorWidget.Color;
@@ -10,13 +11,11 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawableHelper;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.widget.CheckboxWidget;
 import net.minecraft.client.gui.widget.ElementListWidget;
 import net.minecraft.client.gui.widget.PressableWidget;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
 import net.minecraft.util.Language;
@@ -24,8 +23,8 @@ import net.minecraft.util.Language;
 @Environment(EnvType.CLIENT)
 public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> {
 
-    public EntityListWidget(MinecraftClient client, int width, int height, int top, int bottom,  int itemHeight) {
-        super(client, width, height, top, bottom, itemHeight);
+    public EntityListWidget(MinecraftClient client, int width, int height, int top, int itemHeight) {
+        super(client, width, height, top, itemHeight);
         this.centerListVertically = false;
     }
     
@@ -41,8 +40,9 @@ public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> 
         return 400;
     }
 
-    protected int getScrollbarPositionX() {
-        return super.getScrollbarPositionX() + 32;
+    @Override
+    protected int getScrollbarX() {
+        return super.getScrollbarX() + 32;
     }
 
     @Environment(EnvType.CLIENT)
@@ -62,28 +62,30 @@ public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> 
             this.color = color;
 
             this.children.add(checkbox);
-            if (EntitySelector.outlinedEntityTypes.containsKey(entityType)) 
+            if (EntitySelector.outlinedEntityTypes.containsKey(entityType))
                 this.children.add(color);
         }
 
         public static EntityListWidget.EntityEntry create(EntityType<?> entityType, int width) {
             return new EntityListWidget.EntityEntry(
-                new CheckboxWidget(width / 2 - 155, 0, 310, 20, entityType.getName(), EntitySelector.outlinedEntityTypes.containsKey(entityType)),
-                new ColorWidget(width / 2 + 130, 0, 310, 20, entityType),
+                CheckboxWidget.builder(entityType.getName(), MinecraftClient.getInstance().textRenderer).pos(width / 2 - 155, 0).checked(EntitySelector.outlinedEntityTypes.containsKey(entityType)).build(),
+                new ColorWidget(width / 2 + 130, 0, 100, 20, entityType),
                 entityType
             );
         }
 
-        public void render(MatrixStack matrices, int i, int j, int k, int l, int m, int n, int o, boolean bl, float f) {
-            this.checkbox.setY(j);
-            this.checkbox.render(matrices, n, o, f);
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            this.checkbox.setY(y);
+            this.checkbox.render(context, mouseX, mouseY, tickDelta);
 
             if (this.children.contains(this.color)) {
-                this.color.setY(j);
-                this.color.render(matrices, n, o, f);
+                this.color.setY(y);
+                this.color.render(context, mouseX, mouseY, tickDelta);
             }
         }
 
+        @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (EntitySelector.outlinedEntityTypes.containsKey(entityType)) {
                 if (this.color.isMouseOver(mouseX, mouseY)) {
@@ -101,25 +103,17 @@ public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> 
                 this.checkbox.onPress();
                 this.children.add(this.color);
             }
-
             return true;
-         }
+        }
 
         public List<? extends Element> children() {
             return this.children;
         }
 
-        public EntityType<?> getEntityType() {
-            return this.entityType;
-        }
-
-        public CheckboxWidget getCheckbox() {
-            return this.checkbox;
-        }
-
         public List<? extends Selectable> selectableChildren() {
             return this.children;
         }
+
     }
 
     @Environment(EnvType.CLIENT)
@@ -136,11 +130,11 @@ public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> 
             this.height = height;
 
             if (category != null) {
-                String title = "";
-                for (String term : category.getName().split("\\p{Punct}|\\p{Space}")) {
-                    title += StringUtils.capitalize(term) + " ";
+                StringBuilder title = new StringBuilder();
+                for (String term : category.getName().split("\\p{Punct}|\\s")) {
+                    title.append(StringUtils.capitalize(term)).append(" ");
                 }
-                this.title = title.trim();
+                this.title = title.toString().trim();
             } else {
                 this.title = Language.getInstance().get("gui.entity-outliner.no_results");
             }
@@ -151,8 +145,9 @@ public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> 
             return new EntityListWidget.HeaderEntry(category, font, width, height);
         }
 
-        public void render(MatrixStack matrices, int i, int j, int k, int l, int m, int n, int o, boolean bl, float f) {
-            DrawableHelper.drawCenteredText(matrices, this.font, this.title, this.width / 2, j + (this.height / 2) - (this.font.fontHeight / 2), 16777215);
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            context.drawCenteredTextWithShadow(MinecraftClient.getInstance().textRenderer, this.title, this.width / 2, y + (this.height / 2) - (this.font.fontHeight / 2), 16777215);
         }
 
         public List<? extends Element> children() {
@@ -167,5 +162,6 @@ public class EntityListWidget extends ElementListWidget<EntityListWidget.Entry> 
         public List<? extends Selectable> selectableChildren() {
             return new ArrayList<>();
         }
+
     }
 }

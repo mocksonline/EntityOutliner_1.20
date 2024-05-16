@@ -7,15 +7,15 @@ import java.util.List;
 
 import net.entityoutliner.EntityOutliner;
 import net.entityoutliner.ui.ColorWidget.Color;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.SpawnGroup;
 import net.minecraft.entity.EntityType;
 import net.minecraft.text.Text;
-// import net.minecraft.util.registry.Registry;
 import net.minecraft.registry.Registries;
 
 public class EntitySelector extends Screen {
@@ -32,30 +32,37 @@ public class EntitySelector extends Screen {
        super(Text.translatable("title.entity-outliner.selector"));
        this.parent = parent;
     }
- 
-    public void onClose() {
+
+    @Override
+    public void close() {
         this.client.setScreen(this.parent);
     }
 
+//    @Override
+//    public void mouseMoved(double mouseX, double mouseY) {
+//        this.list.setFocused(!(mouseY > this.height - 32));
+//        super.mouseMoved(mouseX, mouseY);
+//    }
+
     protected void init() {
+        super.init();
         if (searcher == null) {
             initializePrefixTree();
         }
 
-        this.list = new EntityListWidget(this.client, this.width, this.height, 32, this.height - 32, 25);
-        this.addSelectableChild(list);
+        this.list = new EntityListWidget(this.client, this.width, this.height - 64, 32, 25);
+        this.addDrawableChild(list);
 
         // Create search field
         this.searchField = new TextFieldWidget(this.textRenderer, this.width / 2 - 100, 6, 200, 20, Text.of(searchText));
         this.searchField.setText(searchText);
         this.searchField.setChangedListener(this::onSearchFieldUpdate);
-        this.addSelectableChild(searchField);
+        this.addDrawableChild(searchField);
 
         // Create buttons
         int buttonWidth = 80;
         int buttonHeight = 20;
         int buttonInterval = (this.width - 4 * buttonWidth) / 5;
-        int buttonOffset = buttonInterval;
         int buttonY = this.height - 16 - (buttonHeight / 2);
 
         // Add sort type button
@@ -73,7 +80,7 @@ public class EntitySelector extends Screen {
                     this.onSearchFieldUpdate(this.searchField.getText());
                     button.setMessage(Text.translatable(groupByCategory ? "button.entity-outliner.categories" : "button.entity-outliner.no-categories"));
                 }
-            ).size(buttonWidth, buttonHeight).position(buttonOffset, buttonY).build()
+            ).size(buttonWidth, buttonHeight).position(buttonInterval, buttonY).build()
         );
 
         // Add Deselect All button
@@ -89,7 +96,7 @@ public class EntitySelector extends Screen {
                     outlinedEntityTypes.clear();
                     this.onSearchFieldUpdate(this.searchField.getText());
                 }
-            ).size(buttonWidth, buttonHeight).position(buttonOffset + (buttonWidth + buttonInterval), buttonY).build()
+            ).size(buttonWidth, buttonHeight).position(buttonInterval + (buttonWidth + buttonInterval), buttonY).build()
         );
 
         // Add toggle outlining button
@@ -105,7 +112,7 @@ public class EntitySelector extends Screen {
                     EntityOutliner.outliningEntities = !EntityOutliner.outliningEntities;
                     button.setMessage(Text.translatable(EntityOutliner.outliningEntities ? "button.entity-outliner.on" : "button.entity-outliner.off"));
                 }
-            ).size(buttonWidth, buttonHeight).position(buttonOffset + (buttonWidth + buttonInterval) * 2, buttonY).build()
+            ).size(buttonWidth, buttonHeight).position(buttonInterval + (buttonWidth + buttonInterval) * 2, buttonY).build()
         );
 
         // Add Done button
@@ -116,8 +123,8 @@ public class EntitySelector extends Screen {
         this.addDrawableChild(
             ButtonWidget.builder(
                 Text.translatable("button.entity-outliner.done"),
-                (button) -> { this.client.setScreen(null); }
-            ).size(buttonWidth, buttonHeight).position(buttonOffset + (buttonWidth + buttonInterval) * 3, buttonY).build()
+                (button) -> { MinecraftClient.getInstance().setScreen(null); }
+            ).size(buttonWidth, buttonHeight).position(buttonInterval + (buttonWidth + buttonInterval) * 3, buttonY).build()
         );
         
         this.setInitialFocus(this.searchField);
@@ -129,7 +136,7 @@ public class EntitySelector extends Screen {
         EntitySelector.searcher = new HashMap<>();
 
         // Initialize no-text results
-        List<EntityType<?>> allResults =  new ArrayList<EntityType<?>>();
+        List<EntityType<?>> allResults = new ArrayList<>();
         EntitySelector.searcher.put("", allResults);
 
         // Get sorted list of entity types
@@ -137,12 +144,7 @@ public class EntitySelector extends Screen {
         for (EntityType<?> entityType : Registries.ENTITY_TYPE) {
             entityTypes.add(entityType);
         }
-        entityTypes.sort(new Comparator<EntityType<?>>() {
-            @Override
-            public int compare(EntityType<?> o1, EntityType<?> o2) {
-                return o1.getName().getString().compareTo(o2.getName().getString());
-            }
-        });
+        entityTypes.sort(Comparator.comparing(o -> o.getName().getString()));
         
         // Add each entity type to everywhere it belongs in the prefix "tree"
         for (EntityType<?> entityType : entityTypes) {
@@ -167,7 +169,7 @@ public class EntitySelector extends Screen {
                     if (EntitySelector.searcher.containsKey(prefix)) {
                         results = EntitySelector.searcher.get(prefix);
                     } else {
-                        results = new ArrayList<EntityType<?>>();
+                        results = new ArrayList<>();
                         EntitySelector.searcher.put(prefix, results);
                     }
 
@@ -207,7 +209,7 @@ public class EntitySelector extends Screen {
 
                 for (SpawnGroup category : SpawnGroup.values()) {
                     if (resultsByCategory.containsKey(category)) {
-                        this.list.addListEntry(EntityListWidget.HeaderEntry.create(category, this.client.textRenderer, this.width, 25));
+                        this.list.addListEntry(EntityListWidget.HeaderEntry.create(category, MinecraftClient.getInstance().textRenderer, this.width, 25));
 
                         for (EntityType<?> entityType : resultsByCategory.get(category)) {
                             this.list.addListEntry(EntityListWidget.EntityEntry.create(entityType, this.width));
@@ -222,7 +224,7 @@ public class EntitySelector extends Screen {
                 }
             }
         } else { // If there are no results, let the user know
-            this.list.addListEntry(EntityListWidget.HeaderEntry.create(null, this.client.textRenderer, this.width, 25));
+            this.list.addListEntry(EntityListWidget.HeaderEntry.create(null, MinecraftClient.getInstance().textRenderer, this.width, 25));
         }
 
         // This prevents an overscroll when the user is already scrolled down and the results list is shortened
@@ -234,24 +236,30 @@ public class EntitySelector extends Screen {
         EntityOutliner.saveConfig();
     }
 
+    @Override
     public void tick() {
-        this.searchField.tick();
+        super.tick();
     }
 
-    public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
+    //    public void tick() {
+//        this.searchField.tick();
+//    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // Render dirt background
-        this.renderBackground(matrices); 
+        super.renderBackground(context, mouseX, mouseY, delta);
 
         // Render scrolling list
-        this.list.render(matrices, mouseX, mouseY, delta);
+        this.list.render(context, mouseX, mouseY, delta);
 
         // Render our search bar
         this.setFocused(this.searchField);
-        this.searchField.setTextFieldFocused(true);
-        this.searchField.render(matrices, mouseX, mouseY, delta);
+        this.searchField.setFocused(true);
+        this.searchField.render(context, mouseX, mouseY, delta);
 
         // Render buttons
-        super.render(matrices, mouseX, mouseY, delta);
+        super.render(context, mouseX, mouseY, delta);
     }
 
     // Sends mouseDragged event to the scrolling list
